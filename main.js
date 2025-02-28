@@ -110,7 +110,31 @@ ipcMain.handle('create-web-contents-view', async () => {
   return viewId;
 });
 
-// Toggle view visibility
+// Handle multiple visibility changes in a single IPC call
+ipcMain.handle('set-multiple-views-visibility', async (event, visibilityChanges) => {
+  if (!mainWindow) return false;
+  
+  // Process each visibility change in the array
+  for (const change of visibilityChanges) {
+    const { id, visible } = change;
+    const view = views.get(id);
+    
+    if (view) {
+      // Set visibility
+      view.setVisible(visible);
+      
+      // If making a view visible, set it as active
+      if (visible) {
+        global.activeViewId = id;
+        updateActiveViewBounds();
+      }
+    }
+  }
+  
+  return true;
+});
+
+// Toggle view visibility (keeping for backward compatibility)
 ipcMain.handle('set-view-visible', async (event, id, visible) => {
   if (!mainWindow) return false;
   

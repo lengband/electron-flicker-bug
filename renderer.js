@@ -60,25 +60,45 @@ async function switchToTab(tabId) {
   // If already the active tab, do nothing
   if (activeTabId === tabId) return;
   
-  // Hide all tab contents
-  for (const tab of tabs) {
-    tab.element.classList.remove('active');
-    if (tab.webContentsId) {
-      await ipcRenderer.invoke('set-view-visible', tab.webContentsId, false);
-    }
-  }
-  
   // Find the tab to activate
   const targetTab = tabs.find(tab => tab.id === tabId);
-  if (targetTab) {
-    // Set new active tab
-    targetTab.element.classList.add('active');
-    // Show the active tab's WebContents
-    if (targetTab.webContentsId) {
-      await ipcRenderer.invoke('set-view-visible', targetTab.webContentsId, true);
-    }
-    activeTabId = tabId;
+  if (!targetTab) return;
+  
+  // Get current active tab
+  const currentActiveTab = tabs.find(tab => tab.id === activeTabId);
+  
+  // Prepare visibility changes for a single IPC call
+  const visibilityChanges = [];
+  
+  // First, make the new tab visible
+  if (targetTab.webContentsId) {
+    visibilityChanges.push({
+      id: targetTab.webContentsId,
+      visible: true
+    });
   }
+  
+  // Then hide the current active tab
+  if (currentActiveTab && currentActiveTab.webContentsId) {
+    visibilityChanges.push({
+      id: currentActiveTab.webContentsId,
+      visible: false
+    });
+  }
+  
+  // Apply all visibility changes in a single IPC call
+  if (visibilityChanges.length > 0) {
+    await ipcRenderer.invoke('set-multiple-views-visibility', visibilityChanges);
+  }
+  
+  // Update UI
+  if (currentActiveTab) {
+    currentActiveTab.element.classList.remove('active');
+  }
+  targetTab.element.classList.add('active');
+  
+  // Update active tab ID
+  activeTabId = tabId;
 }
 
 // Close tab
