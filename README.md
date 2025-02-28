@@ -1,40 +1,46 @@
-# Electron Multi-Tab Example
+# Electron 多标签页示例
 
-This project is an Electron-based multi-tab browser example, primarily demonstrating how to implement browser-like tab switching functionality using WebContentsView's setVisible method.
+这是一个使用Electron的BaseWindow和WebContentsView API实现多标签页功能的示例应用。使用了View容器和addChildView方法实现更加灵活的布局。
 
-## Features
+## 特性
 
-- Multi-tab interface, similar to modern browsers
-- Using WebContentsView to load web content
-- Tab switching implemented with WebContentsView's setVisible method
-- Ability to add and close tabs
+- 使用BaseWindow替代传统BrowserWindow
+- 使用WebContentsView实现标签页内容
+- 基于addChildView的视图切换，无闪烁
+- 支持创建、切换和关闭标签页
 
-## Installation and Running
+## 架构说明
 
-1. Clone or download this repository
-2. Install dependencies:
-   ```
-   npm install
-   ```
-3. Run the application:
-   ```
-   npm start
-   ```
+应用使用了三层View架构：
 
-## Technical Implementation
+1. 主容器视图 (MainContainer)：设置为BaseWindow的contentView
+2. 标签栏视图 (TabView)：作为MainContainer的子视图，固定在顶部
+3. 内容容器视图 (ContentContainer)：作为MainContainer的子视图，位于标签栏下方
+4. 内容视图 (ContentViews)：动态添加到ContentContainer中
 
-- Using Electron's WebContentsView for web content loading and display
-- WebContentsView inherits from the View class, providing the setVisible method
-- IPC communication between renderer and main processes
-- CSS for styling and layout of tabs
-- Direct control of tab content visibility using the setVisible method
+标签页切换时，将内容视图通过addChildView添加到内容容器中，实现了无闪烁的标签页切换效果。
 
-## Project Structure
+## 技术实现
 
-- `main.js` - Main process code, handling window creation and WebContentsView management
-- `index.html` - Main application interface
-- `renderer.js` - Renderer process code, implementing tab management and user interaction
+- 使用View和WebContentsView实现灵活布局
+- 标签栏高度固定为40px
+- 内容区域动态适应窗口大小
+- 优化的视图管理逻辑，避免内存泄漏
 
-## Electron Version
+## 运行方法
 
-This project is developed using the latest Electron v34, taking full advantage of its features. 
+1. 安装依赖:
+```
+npm install
+```
+
+2. 启动应用:
+```
+npm start
+```
+
+## 主要文件
+
+- `main.js`: 主进程代码，处理窗口和视图创建
+- `index.html`: 标签栏UI
+- `renderer.js`: 渲染进程代码，处理标签页逻辑 

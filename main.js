@@ -1,82 +1,139 @@
-const { app, BrowserWindow, ipcMain, WebContentsView } = require('electron');
+const { app, BaseWindow, ipcMain, WebContentsView, View } = require('electron');
 const path = require('path');
 
 // Keep a global reference of the window object to avoid garbage collection
 let mainWindow;
-// Store all views
-const views = new Map();
+// Store all content views
+const contentViews = new Map();
+// Store tab view
+let tabView;
+// Store content container view
+let contentContainer;
 
 function createWindow() {
-  // Create browser window
-  mainWindow = new BrowserWindow({
+  // Create base window
+  mainWindow = new BaseWindow({
     width: 1200,
     height: 800,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
-      webviewTag: false, // Enable webview tag
+      webviewTag: false,
     }
   });
 
-  // Load index.html
-  mainWindow.loadFile('index.html');
+  // 创建主容器视图，它包含两部分：标签栏视图和内容视图
+  const mainContainer = new View();
+  mainWindow.setContentView(mainContainer);
 
-  // Open DevTools (optional)
-  // mainWindow.webContents.openDevTools();
+  // 创建标签栏视图
+  tabView = new WebContentsView({
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    }
+  });
 
-  // Event when window is closed
+  // 创建内容容器视图
+  contentContainer = new View();
+
+  // 将标签栏视图和内容容器添加到主容器
+  mainContainer.addChildView(tabView);
+  mainContainer.addChildView(contentContainer);
+
+  // 设置标签栏视图位置和大小
+  const bounds = mainWindow.getBounds();
+  tabView.setBounds({
+    x: 0,
+    y: 0,
+    width: bounds.width,
+    height: 40, // 标签栏高度
+  });
+
+  // 设置内容容器位置和大小
+  contentContainer.setBounds({
+    x: 0,
+    y: 40, // 在标签栏下方
+    width: bounds.width,
+    height: bounds.height - 40,
+  });
+
+  // 加载标签栏界面
+  tabView.webContents.loadFile('index.html');
+
+  // 窗口关闭时的事件处理
   mainWindow.on('closed', function () {
     mainWindow = null;
   });
   
-  // Adjust active view size when window size changes
+  // 窗口大小变化时调整视图大小
   mainWindow.on('resize', () => {
-    updateActiveViewBounds();
+    updateViewsBounds();
   });
 }
 
-// Update active view size
-function updateActiveViewBounds() {
+// 更新所有视图的大小
+function updateViewsBounds() {
   if (!mainWindow) return;
   
-  const activeViewId = global.activeViewId;
-  if (!activeViewId) return;
-  
-  const view = views.get(activeViewId);
-  if (!view) return;
-  
   const bounds = mainWindow.getBounds();
-  const contentBounds = {
-    x: 0,
-    y: 40, // Below tab bar
-    width: bounds.width,
-    height: bounds.height - 40
-  };
   
-  view.setBounds(contentBounds);
+  // 更新标签栏视图大小
+  if (tabView) {
+    tabView.setBounds({
+      x: 0,
+      y: 0,
+      width: bounds.width,
+      height: 40, // 标签栏高度
+    });
+  }
+  
+  // 更新内容容器大小
+  if (contentContainer) {
+    contentContainer.setBounds({
+      x: 0,
+      y: 40, // 在标签栏下方
+      width: bounds.width,
+      height: bounds.height - 40,
+    });
+  }
+  
+  // 更新当前活动内容视图大小
+  const activeViewId = global.activeViewId;
+  if (activeViewId) {
+    const view = contentViews.get(activeViewId);
+    if (view) {
+      view.setBounds({
+        x: 0,
+        y: 0,
+        width: bounds.width,
+        height: bounds.height - 40,
+      });
+    }
+  }
 }
 
-// Initialize window when Electron is ready
+// 初始化应用
 app.whenReady().then(() => {
   createWindow();
   
-  // On macOS, recreate window when dock icon is clicked and no windows are open
+  // macOS特性：点击dock图标时重新创建窗口
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (BaseWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
-// Quit application when all windows are closed
+// 所有窗口关闭时退出应用
 app.on('window-all-closed', function () {
-  // On macOS, applications typically stay active until user quits explicitly
+  // macOS特性：应用保持活跃状态直到用户明确退出
   if (process.platform !== 'darwin') app.quit();
 });
 
-// Create new WebContentsView
+// 创建新的WebContentsView
 ipcMain.handle('create-web-contents-view', async () => {
-  if (!mainWindow) return null;
+  if (!mainWindow || !contentContainer) return null;
   
-  // Create new WebContentsView
+  // 创建新的内容视图
   const view = new WebContentsView({
     webPreferences: {
       nodeIntegration: false,
@@ -86,92 +143,70 @@ ipcMain.handle('create-web-contents-view', async () => {
     }
   });
   
-  // Set view bounds
+  // 设置视图大小为内容容器大小
   view.setBounds({
     x: 0,
-    y: 40,
-    width: mainWindow.getBounds().width,
-    height: mainWindow.getBounds().height - 40
+    y: 0,
+    width: contentContainer.getBounds().width,
+    height: contentContainer.getBounds().height,
   });
   
-  // Load website
+  // 加载网页内容
   await view.webContents.loadURL(process.env.DEBUG_URL || 'https://www.electronjs.org/');
   
-  // Add to main window's contentView
-  mainWindow.contentView.addChildView(view);
-  
-  // Hide view by default
-  view.setVisible(false);
-  
-  // Store view reference
+  // 存储视图引用
   const viewId = view.webContents.id;
-  views.set(viewId, view);
+  contentViews.set(viewId, view);
   
   return viewId;
 });
 
-// Handle multiple visibility changes in a single IPC call
+// 处理多个视图可见性变化
 ipcMain.handle('set-multiple-views-visibility', async (event, visibilityChanges) => {
-  if (!mainWindow) return false;
+  if (!mainWindow || !contentContainer) return false;
   
-  // Process each visibility change in the array
+  // 处理每个视图可见性变化
   for (const change of visibilityChanges) {
     const { id, visible } = change;
-    const view = views.get(id);
+    const view = contentViews.get(id);
     
-    if (view) {
-      // Set visibility
-      view.setVisible(visible);
+    if (view && visible) {
+      // 如果视图应该可见，将其设置为内容容器的内容
+      contentContainer.addChildView(view);
       
-      // If making a view visible, set it as active
-      if (visible) {
-        global.activeViewId = id;
-        updateActiveViewBounds();
-      }
+      // 标记为当前活动视图
+      global.activeViewId = id;
+      
+      // 更新视图大小
+      view.setBounds({
+        x: 0,
+        y: 0,
+        width: contentContainer.getBounds().width,
+        height: contentContainer.getBounds().height,
+      });
     }
   }
   
   return true;
 });
 
-// Toggle view visibility (keeping for backward compatibility)
-ipcMain.handle('set-view-visible', async (event, id, visible) => {
-  if (!mainWindow) return false;
-  
-  const view = views.get(id);
-  if (!view) return false;
-  
-  // Directly use setVisible method to control view visibility
-  view.setVisible(visible);
-  
-  if (visible) {
-    // Set current view as active view
-    global.activeViewId = id;
-    
-    // Update view size
-    updateActiveViewBounds();
-  }
-  
-  return true;
-});
-
-// Destroy WebContentsView
+// 销毁内容视图
 ipcMain.handle('destroy-web-contents-view', (event, id) => {
-  const view = views.get(id);
+  const view = contentViews.get(id);
   if (!view) return false;
   
-  // Remove from main window contentView
-  if (mainWindow && mainWindow.contentView) {
-    mainWindow.contentView.removeChildView(view);
+  // 从内容容器中移除视图
+  if (contentContainer) {
+    contentContainer.removeChildView(view);
   }
   
-  // Destroy view
+  // 销毁视图
   view.webContents.destroy();
   
-  // Remove from map
-  views.delete(id);
+  // 从映射中移除
+  contentViews.delete(id);
   
-  // Clear active view ID if deleted view was active
+  // 如果删除的是当前活动视图，清除活动视图ID
   if (global.activeViewId === id) {
     global.activeViewId = null;
   }

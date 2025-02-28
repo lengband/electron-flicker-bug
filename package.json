@@ -9,8 +9,8 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "使用BaseWindow和WebContentsView实现的多标签页应用",
   "dependencies": {
-    "electron": "^34.3.0"
+    "electron": "^34.6.0"
   }
 }

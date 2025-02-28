@@ -33,7 +33,8 @@ async function createTab() {
   tabs.push({
     id: tabId,
     element: tabElement,
-    webContentsId: webContentsId
+    webContentsId: webContentsId,
+    title: tabId
   });
   
   // Set new tab as active tab
@@ -48,7 +49,8 @@ async function createTab() {
   
   // Listen for close button click events
   const closeButton = tabElement.querySelector('.close-tab');
-  closeButton.addEventListener('click', () => {
+  closeButton.addEventListener('click', (e) => {
+    e.stopPropagation();
     closeTab(tabId);
   });
   
